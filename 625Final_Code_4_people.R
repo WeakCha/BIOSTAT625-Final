@@ -1,25 +1,23 @@
 ## This file is the code for 4 people, we have denoted which part belongs to whom.
 
-## library packages
-library(readr)
-library(dplyr)
-library(parallel)
+## Import packages
+library(caret)
 library(data.table)
 library(doMC)
-library(knitr)
 library(doParallel)
+library(dplyr)
+library(foreach)
 library(ggplot2)
+library(grid)
+library(knitr)
+library(magick)
+library(parallel)
+library(pROC)
+library(randomForest)
+library(readr)
 library(tidyr)
 library(usmap)
-library(grid)
-library(magick)
-library(caret)
-library(randomForest)
-library(doParallel)
-library(foreach)
-library(pROC)
 
-setwd("/Users/shaoyubo/Desktop/UMich/Course/Fall 2021/BIOSTAT 625/HW/Final project")
 ## use "data.table::fread" function to import data  
 n.threads <- getDTthreads()
 data.table::setDTthreads(n.threads)
@@ -102,6 +100,7 @@ data.initial <-
     "percent_limited_english_abilities"
   )]
 
+rm(load.data, selected.state.data, exclude.state.names, state.names)
 
 ############################################################
 ##################    1. DATA CLEAN     ####################
@@ -122,11 +121,13 @@ unique.county.population <- Visualization.used.data[!duplicated(Visualization.us
                                                                 fromLast = T)]
 ### Note: do not need parallel computing, "for-loop" is fast enough.
 for (i in selected.state.names) {
-  state.population <- sum(unique.county.population[unique.county.population$state == i, 
-                                                   total_population], na.rm = T)
+  state.population <- sum(unique.county.population[
+    unique.county.population$state == i, total_population], na.rm = T)
   Visualization.used.data$state.population[Visualization.used.data$state == i] <-
     state.population
 }
+
+rm(state.population)
 
 ## separate monthly data (per 3 months)
 Feb <- as.Date("2020-02-01")
@@ -134,14 +135,16 @@ Apr <- as.Date("2020-04-01")
 Jul <- as.Date("2020-07-01")
 Oct <- as.Date("2020-10-01")
 
-first.season.data <- Visualization.used.data[which(Visualization.used.data$date >= Feb &
-                                                     Visualization.used.data$date < Apr),]
-second.season.data <- Visualization.used.data[which(Visualization.used.data$date >= Apr &
-                                                      Visualization.used.data$date < Jul),]
-third.season.data <- Visualization.used.data[which(Visualization.used.data$date >= Jul &
-                                                     Visualization.used.data$date < Oct),]
-fourth.season.data <- Visualization.used.data[which(Visualization.used.data$date >= Oct),]
+first.season.data <- Visualization.used.data[
+  which(Visualization.used.data$date >= Feb & Visualization.used.data$date < Apr),]
+second.season.data <- Visualization.used.data[
+  which(Visualization.used.data$date >= Apr & Visualization.used.data$date < Jul),]
+third.season.data <- Visualization.used.data[
+  which(Visualization.used.data$date >= Jul & Visualization.used.data$date < Oct),]
+fourth.season.data <- Visualization.used.data[
+  which(Visualization.used.data$date >= Oct),]
 
+rm(Feb, Apr, Jul, Oct)
 
 ## Define two parities (based on the results of presidential election 2020)
 blue.state.names <-
@@ -275,6 +278,8 @@ colnames(Fatality.table) <-
 kable(head(Fatality.table, n = 10), align = c("c", "c", "c", "c", "c"), 
       caption = "Fatality rate (per 1,000 patients)")
 
+rm(Fatality.no, incidence.no, mortality.no)
+
 ## 1.2 Line Chart of Incidence Rate and Mortality Rate across Country
 # Credit to Yubo Shao
 
@@ -319,6 +324,9 @@ inci.dataframe$date <- as.Date(inci.dataframe$date, origin="1970-01-01")
 kable(tail(inci.dataframe, n = 10), align = c("c", "c", "c"),
       caption = "Incidence rate on different date (per 100,000 people)")
 
+#### transform into long format
+inci.dataframe.long <- gather(inci.dataframe, Party, Incidence.rate, Democratic:Republican, factor_key=TRUE)
+
 #### (2) line chart data of Mortality Rate
 ##### Use identical logic
 accumulate.Mortality.Rate <- function(which.date) {
@@ -343,15 +351,26 @@ death.dataframe$date <- as.Date(death.dataframe$date, origin="1970-01-01")
 kable(tail(death.dataframe, n = 10), align = c("c", "c", "c"), 
       caption = "Mortality rate on different date (per 100,000 people)")
 
+##### transform into long format
+death.dataframe.long <- gather(death.dataframe, Party, death.rate, Democratic:Republican, factor_key=TRUE)
+
 #### (3) line chart data of Fatality Rate
 Fatality.matrix <- matrix(rep(NA, 2 * length(unique.date)), ncol = 2)
-##### fatality rate = mortatility rate/incidence rate
+##### fatality rate = mortality rate/incidence rate
 Fatality.matrix[, 1] <- death.dataframe$Democratic/inci.dataframe$Democratic * 1000
 Fatality.matrix[, 2] <- death.dataframe$Republican/inci.dataframe$Republican * 1000
 Fatality.dataframe <- cbind(death.dataframe$date, as.data.frame(Fatality.matrix))
 colnames(Fatality.dataframe) <- c("date", "Democratic", "Republican")
 kable(tail(Fatality.dataframe, n = 10), align = c("c", "c", "c"), 
       caption = "Fatality rate on different date (per 1,000 patients)")
+##### transform into long format
+Fatality.dataframe.long <- gather(Fatality.dataframe, Party, Fatality.rate, Democratic:Republican, factor_key=TRUE)
+
+
+rm(calculate.party.population, death.matrix, death.dataframe, Fatality.matrix, Fatality.dataframe, 
+   inci.matrix, inci.dataframe, line.chart.data,line.chart.used.data, Visualization.used.data, 
+   first.season.data, second.season.data, third.season.data, fourth.season.data, i, j, 
+   blue.state.population, red.state.population, unique.date)
 
 ############################################################
 ## Task2: Predictive Model
@@ -425,6 +444,9 @@ Prediction.model.select.data$I.above.average.fatality[
 Prediction.model.select.data$I.above.average.fatality[
   Prediction.model.select.data$fatality.rate > average.fatality.rate] <- "Yes"
 
+rm(average.fatality.rate, average.incidence.rate, average.mortality.rate,
+   high.missing.features.names, missing.features.counts, row.NA, prediction.data,
+   Prediction.model.data)
 
 ############################################################
 ##############    2. Data Visualization     ################
@@ -434,26 +456,25 @@ Prediction.model.select.data$I.above.average.fatality[
 ##incidence
 # Credit to Yichu Wang
 # add state
-incidence <- cbind(row.names(incidence.table),(incidence.table))
-colnames(incidence)[1]='state'
-
+incidence <- cbind(row.names(incidence.table), (incidence.table))
+colnames(incidence)[1] <- 'state'
 
 #transform to numerical data
-incidence$"2020/03/31"=as.numeric((incidence$"2020/03/31"))
-incidence$"2020/06/30"=as.numeric((incidence$"2020/06/30"))
-incidence$"2020/09/30"=as.numeric((incidence$"2020/09/30"))
-incidence$"2020/12/04"=as.numeric((incidence$"2020/12/04"))
+incidence$"2020/03/31" <- as.numeric((incidence$"2020/03/31"))
+incidence$"2020/06/30" <- as.numeric((incidence$"2020/06/30"))
+incidence$"2020/09/30" <- as.numeric((incidence$"2020/09/30"))
+incidence$"2020/12/04" <- as.numeric((incidence$"2020/12/04"))
 
 for (i in 1:nrow(incidence)) {
   if(incidence[i, 6] == "Democratic"){
-    incidence[i, 2:5] = incidence[i, 2:5]*(-1)
+    incidence[i, 2:5] <- incidence[i, 2:5]*(-1)
   }
 }
 
-i1 <- plot_usmap(data = incidence, values = "2020/03/31",regions = "states",exclude = c("AK","HI"),labels = TRUE) +
+i1 <- plot_usmap(data = incidence, values = "2020/03/31", regions = "states", exclude = c("AK","HI"),labels = TRUE) +
   labs(fill = "Incidence Rate \n (per 100k people)") +
-  scale_fill_gradientn(colours = c("deepskyblue2", "white","indianred1"),limit = c(-500, 500),na.value = "white")+
-  labs(title = "Incidence Rate (per 100k people) of Blue and Red States",subtitle =" (From 01/21/2020 to 03/31/2020)
+  scale_fill_gradientn(colours = c("deepskyblue2", "white","indianred1"), limit = c(-500, 500),na.value = "white")+
+  labs(title = "Incidence Rate (per 100k people) of Blue and Red States", subtitle =" (From 01/21/2020 to 03/31/2020)
 ") +
   theme(legend.position = "right")
 
@@ -461,72 +482,72 @@ i1$layers[[2]]$aes_params$size <- 2
 
 i2 <- plot_usmap(data = incidence, values = "2020/06/30",regions = "states",exclude = c("AK","HI"),labels = TRUE) +
   labs(fill = 'Incidence Rate \n (per 100k people)') +
-  scale_fill_gradientn(colours = c("dodgerblue1", "white","firebrick1"),limit = c(-2100, 2100),na.value = "white")+
-  labs(title = "Incidence Rate (per 100k people) of Blue and Red States",subtitle =" (From 03/31/2020 to 06/30/2020)
+  scale_fill_gradientn(colours = c("dodgerblue1", "white","firebrick1"), limit = c(-2100, 2100), na.value = "white")+
+  labs(title = "Incidence Rate (per 100k people) of Blue and Red States", subtitle =" (From 03/31/2020 to 06/30/2020)
 ") +
   theme(legend.position = "right")
 
 i2$layers[[2]]$aes_params$size <- 2
 
-i3 <- plot_usmap(data = incidence, values = "2020/09/30",regions = "states",exclude = c("AK","HI"),labels = TRUE) +
+i3 <- plot_usmap(data = incidence, values = "2020/09/30", regions = "states", exclude = c("AK","HI"),labels = TRUE) +
   labs(fill = 'Incidence Rate \n (per 100k people)') +
-  scale_fill_gradientn(colours = c("dodgerblue2", "white","firebrick2"),limit = c(-4000, 4000),na.value = "white")+
-  labs(title = "Incidence Rate (per 100k people) of Blue and Red States",subtitle =" (From 06/30/2020 to 09/30/2020)
+  scale_fill_gradientn(colours = c("dodgerblue2", "white","firebrick2"), limit = c(-4000, 4000),na.value = "white")+
+  labs(title = "Incidence Rate (per 100k people) of Blue and Red States", subtitle = " (From 06/30/2020 to 09/30/2020)
 ") +
   theme(legend.position = "right")
 
 i3$layers[[2]]$aes_params$size <- 2
 
-i4 <- plot_usmap(data = incidence, values = "2020/12/04",regions = "states",exclude = c("AK","HI"),labels = TRUE) +
+i4 <- plot_usmap(data = incidence, values = "2020/12/04", regions = "states", exclude = c("AK","HI"),labels = TRUE) +
   labs(fill = 'Incidence Rate \n (per 100k people)') +
-  scale_fill_gradientn(colours = c("dodgerblue3", "white","firebrick3"),limit = c(-11150, 11150),na.value = "white")+
-  labs(title = "Incidence Rate (per 100k people) of Blue and Red States",subtitle =" (From 09/30/2020 to 12/04/2020)
+  scale_fill_gradientn(colours = c("dodgerblue3", "white","firebrick3"), limit = c(-11150, 11150),na.value = "white")+
+  labs(title = "Incidence Rate (per 100k people) of Blue and Red States", subtitle = " (From 09/30/2020 to 12/04/2020)
 ") +
   theme(legend.position = "right")
 
 i4$layers[[2]]$aes_params$size <- 2
 
-ggsave(filename = "i1.png", plot=i1,width=6,height=6,units="in",scale=1)
+ggsave(filename = "i1.png", plot = i1, width = 6, height = 6, units = "in", scale = 1)
 i.1 <- image_read("i1.png")
 
-ggsave(filename = "i2.png", plot=i2,width=6,height=6,units="in",scale=1)
+ggsave(filename = "i2.png", plot = i2, width = 6, height = 6, units = "in", scale = 1)
 i.2 <- image_read("i2.png")
 
-ggsave(filename = "i3.png", plot=i3,width=6,height=6,units="in",scale=1)
+ggsave(filename = "i3.png", plot = i3, width = 6, height = 6, units = "in", scale = 1)
 i.3 <- image_read("i3.png")
 
-ggsave(filename = "i4.png", plot=i4,width=6,height=6,units="in",scale=1)
+ggsave(filename = "i4.png", plot = i4, width = 6, height = 6, units = "in", scale = 1)
 i.4 <- image_read("i4.png")
 
 img <- c(i.1,i.2,i.3,i.4)
 image_append(image_scale(img, "x200"))
-i.animation<-image_animate(image_scale(img, "500x500"), fps = 1, dispose = "previous")
-image_write(i.animation, incidence-i.gif)
+i.animation <- image_animate(image_scale(img, "500x500"), fps = 1, dispose = "previous")
+image_write(i.animation, incidence)
 i.animation
 
 
 ##Fatality
 
 #add state
-Fatality <- cbind(row.names(Fatality.table),(Fatality.table))
-colnames(Fatality)[1]='state'
+Fatality <- cbind(row.names(Fatality.table), (Fatality.table))
+colnames(Fatality)[1] <- 'state'
 
 #transform to numerical data
-Fatality$"2020/03/31"=as.numeric((Fatality$"2020/03/31"))
-Fatality$"2020/06/30"=as.numeric((Fatality$"2020/06/30"))
-Fatality$"2020/09/30"=as.numeric((Fatality$"2020/09/30"))
-Fatality$"2020/12/04"=as.numeric((Fatality$"2020/12/04"))
+Fatality$"2020/03/31" <- as.numeric((Fatality$"2020/03/31"))
+Fatality$"2020/06/30" <- as.numeric((Fatality$"2020/06/30"))
+Fatality$"2020/09/30" <- as.numeric((Fatality$"2020/09/30"))
+Fatality$"2020/12/04" <- as.numeric((Fatality$"2020/12/04"))
 
 for (i in 1:nrow(Fatality)) {
   if(Fatality[i, 6] == "Democratic"){
-    Fatality[i, 2:5] = Fatality[i, 2:5]*(-1)
+    Fatality[i, 2:5] <- Fatality[i, 2:5]*(-1)
   }
 }
 
-f1 <- plot_usmap(data = Fatality, values = "2020/03/31",regions = "states",exclude = c("AK","HI"),labels = TRUE) +
+f1 <- plot_usmap(data = Fatality, values = "2020/03/31", regions = "states", exclude = c("AK","HI"),labels = TRUE) +
   labs(fill = "Fatality Rate \n (per 100k people)") +
-  scale_fill_gradientn(colours = c("dodgerblue2", "white","firebrick2"),limit = c(-100, 100),na.value = "white")+
-  labs(title = "Fatality Rate (per 100k people) of Blue and Red States",subtitle =" (From 01/21/2020 to 03/31/2020)
+  scale_fill_gradientn(colours = c("dodgerblue2", "white","firebrick2"), limit = c(-100, 100),na.value = "white")+
+  labs(title = "Fatality Rate (per 100k people) of Blue and Red States", subtitle =" (From 01/21/2020 to 03/31/2020)
 ") +
   theme(legend.position = "right")
 
@@ -535,7 +556,7 @@ f1$layers[[2]]$aes_params$size <- 2
 f2 <- plot_usmap(data = Fatality, values = "2020/06/30",regions = "states",exclude = c("AK","HI"),labels = TRUE) +
   labs(fill = 'Fatality Rate \n (per 100k people)') +
   scale_fill_gradientn(colours = c("dodgerblue2", "white","firebrick2"),limit = c(-100, 100),na.value = "white")+
-  labs(title = "Fatality Rate (per 100k people) of Blue and Red States",subtitle =" (From 03/31/2020 to 06/30/2020)
+  labs(title = "Fatality Rate (per 100k people) of Blue and Red States", subtitle =" (From 03/31/2020 to 06/30/2020)
 ") +
   theme(legend.position = "right")
 
@@ -544,7 +565,7 @@ f2$layers[[2]]$aes_params$size <- 2
 f3 <- plot_usmap(data = Fatality, values = "2020/09/30",regions = "states",exclude = c("AK","HI"),labels = TRUE) +
   labs(fill = 'Fatality Rate \n (per 100k people)') +
   scale_fill_gradientn(colours = c("dodgerblue2", "white","firebrick2"),limit = c(-100, 100),na.value = "white")+
-  labs(title = "Fatality Rate (per 100k people) of Blue and Red States",subtitle =" (From 06/30/2020 to 09/30/2020)
+  labs(title = "Fatality Rate (per 100k people) of Blue and Red States", subtitle =" (From 06/30/2020 to 09/30/2020)
 ") +
   theme(legend.position = "right")
 
@@ -553,7 +574,7 @@ f3$layers[[2]]$aes_params$size <- 2
 f4 <- plot_usmap(data = Fatality, values = "2020/12/04",regions = "states",exclude = c("AK","HI"),labels = TRUE) +
   labs(fill = 'Fatality Rate \n (per 100k people)') +
   scale_fill_gradientn(colours = c("dodgerblue2", "white","firebrick2"),limit = c(-100, 100),na.value = "white")+
-  labs(title = "Fatality Rate (per 100k people) of Blue and Red States",subtitle =" (From 09/30/2020 to 12/04/2020)
+  labs(title = "Fatality Rate (per 100k people) of Blue and Red States", subtitle =" (From 09/30/2020 to 12/04/2020)
 ") +
   theme(legend.position = "right")
 
@@ -579,8 +600,8 @@ for (i in 1:nrow(mortality)) {
 
 m1 <- plot_usmap(data = mortality, values = "2020/03/31",regions = "states",exclude = c("AK","HI"),labels = TRUE) +
   labs(fill = "Mortality Rate \n (per 100k people)") +
-  scale_fill_gradientn(colours = c("deepskyblue2", "white","indianred1"),limit = c(-50, 50),na.value = "white")+
-  labs(title = "Mortality Rate (per 100k people) of Blue and Red States",subtitle =" (From 01/21/2020 to 03/31/2020)
+  scale_fill_gradientn(colours = c("deepskyblue2", "white","indianred1"), limit = c(-50, 50),na.value = "white")+
+  labs(title = "Mortality Rate (per 100k people) of Blue and Red States", subtitle =" (From 01/21/2020 to 03/31/2020)
 ") +
   theme(legend.position = "right")
 
@@ -588,8 +609,8 @@ m1$layers[[2]]$aes_params$size <- 2
 
 m2 <- plot_usmap(data = mortality, values = "2020/06/30",regions = "states",exclude = c("AK","HI"),labels = TRUE) +
   labs(fill = 'Mortality Rate \n (per 100k people)') +
-  scale_fill_gradientn(colours = c("dodgerblue2", "white","firebrick2"),limit = c(-200, 200),na.value = "white")+
-  labs(title = "Mortality Rate (per 100k people) of Blue and Red States",subtitle =" (From 03/31/2020 to 06/30/2020)
+  scale_fill_gradientn(colours = c("dodgerblue2", "white","firebrick2"), limit = c(-200, 200),na.value = "white")+
+  labs(title = "Mortality Rate (per 100k people) of Blue and Red States", subtitle =" (From 03/31/2020 to 06/30/2020)
 ") +
   theme(legend.position = "right")
 
@@ -597,16 +618,16 @@ m2$layers[[2]]$aes_params$size <- 2
 
 m3 <- plot_usmap(data = mortality, values = "2020/09/30",regions = "states",exclude = c("AK","HI"),labels = TRUE) +
   labs(fill = 'Mortality Rate \n (per 100k people)') +
-  scale_fill_gradientn(colours = c("dodgerblue2", "white","firebrick2"),limit = c(-200, 200),na.value = "white")+
-  labs(title = "Mortality Rate (per 100k people) of Blue and Red States",subtitle =" (From 06/30/2020 to 09/30/2020)
+  scale_fill_gradientn(colours = c("dodgerblue2", "white","firebrick2"), limit = c(-200, 200),na.value = "white")+
+  labs(title = "Mortality Rate (per 100k people) of Blue and Red States", subtitle =" (From 06/30/2020 to 09/30/2020)
 ") +
   theme(legend.position = "right")
 
 m3$layers[[2]]$aes_params$size <- 2
 
-m4 <- plot_usmap(data = mortality, values = "2020/12/04",regions = "states",exclude = c("AK","HI"),labels = TRUE) +
+m4 <- plot_usmap(data = mortality, values = "2020/12/04",regions = "states", exclude = c("AK","HI"),labels = TRUE) +
   labs(fill = 'Mortality Rate \n (per 100k people)') +
-  scale_fill_gradientn(colours = c("dodgerblue2", "white","firebrick2"),limit = c(-200, 200),na.value = "white")+
+  scale_fill_gradientn(colours = c("dodgerblue2", "white","firebrick2"), limit = c(-200, 200),na.value = "white")+
   labs(title = "Mortality Rate (per 100k people) of Blue and Red States",subtitle =" (From 09/30/2020 to 12/04/2020)
 ") +
   theme(legend.position = "right")
@@ -616,27 +637,27 @@ m4$layers[[2]]$aes_params$size <- 2
 
 ###line chart
 I <- ggplot() + geom_line(aes(date, Incidence.rate, color = factor(Party)), inci.dataframe.long) +
-  scale_color_manual(name = "Party",values=c("dodgerblue","firebrick"))+
+  scale_color_manual(name = "Party",values = c("dodgerblue","firebrick"))+
   scale_x_date(date_labels = "%m/%Y")+
-  theme(panel.grid = element_blank(), panel.background = element_blank(),
+  theme(panel.grid = element_blank(), panel.background = element_blank(), 
         axis.line = element_line(colour = "black")) + labs(x = "Date", y = "Incidence Rate (per 100,000)") +
-  ggtitle("Incidence Rate of Blue and Red States",subtitle = "From 01/21/2020 to 12/04/2020")
+  ggtitle("Incidence Rate of Blue and Red States", subtitle = "From 01/21/2020 to 12/04/2020")
 
 
 M <- ggplot() + geom_line(aes(date, death.rate, color = factor(Party)), death.dataframe.long) +
-  scale_color_manual(name = "Party",values=c("dodgerblue","firebrick"))+
+  scale_color_manual(name = "Party",values = c("dodgerblue","firebrick"))+
   scale_x_date(date_labels = "%m/%Y")+
   theme(panel.grid = element_blank(), panel.background = element_blank(),
         axis.line = element_line(colour = "black")) + labs(x = "Date", y = "Mortality Rate (per 100,000)") +
-  ggtitle("Mortality Rate of Blue and Red States",subtitle = "From 01/21/2020 to 12/04/2020")
+  ggtitle("Mortality Rate of Blue and Red States", subtitle = "From 01/21/2020 to 12/04/2020")
 
 
 f <- ggplot() + geom_line(aes(date, Fatality.rate, color = factor(Party)), Fatality.dataframe.long) +
-  scale_color_manual(name = "Party",values=c("dodgerblue","firebrick"))+
+  scale_color_manual(name = "Party",values = c("dodgerblue","firebrick"))+
   scale_x_date(date_labels = "%m/%Y")+
   theme(panel.grid = element_blank(), panel.background = element_blank(),
         axis.line = element_line(colour = "black")) + labs(x = "Date", y = "Fatality Rate (per 100,000)") +
-  ggtitle("Fatality Rate of Blue and Red States",subtitle = "From 01/21/2020 to 12/04/2020")
+  ggtitle("Fatality Rate of Blue and Red States", subtitle = "From 01/21/2020 to 12/04/2020")
 
 ############################################################
 ###############    3. Predictive Model     #################
@@ -644,146 +665,175 @@ f <- ggplot() + geom_line(aes(date, Fatality.rate, color = factor(Party)), Fatal
 # Credit to Lingxuan Kong
 # Warnings are GLM fit warning, not coding error.
 
-Forward_Select<- function(X,A,N,C){
+Forward_Select <- function(X, A, N, C) {
   #Variable select
   C <- c(C)
   name <- names(X)
   A <- c(A)
-  name <- name[-which(name==A)]
-  Res <- data.frame(name,pVal=NA)
+  name <- name[-which(name == A)]
+  Res <- data.frame(name, pVal = NA)
   for (i in 1:length(name)) {
-    mod <- glm(paste(A,"~",name[i]),data = X, family = "binomial")
-    Res[i,2] <- summary(mod)$coefficients[2,4]
+    mod <- glm(paste(A, "~", name[i]), data = X, family = "binomial")
+    Res[i, 2] <- summary(mod)$coefficients[2, 4]
   }
-  Res[,2] <- round(Res[,2],4)
-  Res[,"sig"] <- 0
-  Res[which(Res$pVal<0.01),"sig"] <- 1
+  Res[, 2] <- round(Res[, 2], 4)
+  Res[, "sig"] <- 0
+  Res[which(Res$pVal < 0.01), "sig"] <- 1
   #Forward select
-  name2 <- Res[which(Res$sig==1),1]
+  name2 <- Res[which(Res$sig == 1), 1]
   included <- c()
   pVal <- c()
   AIC <- c()
   flag <- FALSE
   j <- 1
-  inclu <- name[which.min(Res[,2])]
-  name2 <- name2[-which(name2==inclu)]
+  inclu <- name[which.min(Res[, 2])]
+  name2 <- name2[-which(name2 == inclu)]
   while (flag == FALSE) {
     pVal <- c()
     AIC <- c()
     for (i in 1:length(name2)) {
-      mod <- glm(paste(A,"~",inclu,"+",name2[i],sep = ""),data = X, family = "binomial")
-      pVal[i] <- summary(mod)$coefficients[(length(inclu)+1),4]
+      mod <-
+        glm(paste(A, "~", inclu, "+", name2[i], sep = ""),
+            data = X,
+            family = "binomial")
+      pVal[i] <- summary(mod)$coefficients[(length(inclu) + 1), 4]
       AIC[i] <- mod$aic
     }
-    if(length(which(pVal<=0.01))==0){
+    if (length(which(pVal <= 0.01)) == 0) {
       flag <- TRUE
       return(included)
     }
-    if(j>N){
+    if (j > N) {
       return(included)
     }
-    if(which.min(pVal)==which.min(AIC)){
+    if (which.min(pVal) == which.min(AIC)) {
       included[j] <- name2[which.min(pVal)]
       name2 <- name2[-which.min(pVal)]
-      inclu <- paste(inclu,"+",included[j])
-      j <- j+1}else{
-        if(C=="pval"){#Criteria = p-value
-          included[j] <- name2[which.min(pVal)]
-          name2 <- name2[-which.min(pVal)]
-          inclu <- paste(inclu,"+",included[j])
-          j <- j+1}
-        if(C=="AIC"){#Criteria = AIC
-          included[j] <- name2[which.min(AIC)]
-          name2 <- name2[-which.min(AIC)]
-          inclu <- paste(inclu,"+",included[j])
-          j <- j+1}}
+      inclu <- paste(inclu, "+", included[j])
+      j <- j + 1
+    } else{
+      if (C == "pval") {
+        #Criteria = p-value
+        included[j] <- name2[which.min(pVal)]
+        name2 <- name2[-which.min(pVal)]
+        inclu <- paste(inclu, "+", included[j])
+        j <- j + 1
+      }
+      if (C == "AIC") {
+        #Criteria = AIC
+        included[j] <- name2[which.min(AIC)]
+        name2 <- name2[-which.min(AIC)]
+        inclu <- paste(inclu, "+", included[j])
+        j <- j + 1
+      }
+    }
   }
 }
 
 # Credit to Li Liu
+
 # Load Data
-DATA <- read.csv("C:/Users/Lingxuan Kong/Desktop/Prediction.model.select.data.csv")
-DATA <- DATA[,-57]
+DATA <- read.csv("/Users/shaoyubo/Desktop/UMich/Course/Fall 2021/BIOSTAT 625/HW/Final project/Final_Project/Prediction.model.select.data.csv")
+DATA <- DATA[, -57]
 
 # Transforming T/F to 0/1 and then do factors
-DATA[which(DATA$presence_of_water_violation=="TRUE"),"presence_of_water_violation"] <- 1
-DATA[which(DATA$presence_of_water_violation=="FALSE"),"presence_of_water_violation"] <- 0
+DATA[which(DATA$presence_of_water_violation == "TRUE"), "presence_of_water_violation"] <- 1
+DATA[which(DATA$presence_of_water_violation == "FALSE"), "presence_of_water_violation"] <- 0
 
-DATA[which(DATA$party=="Republican"),"party"] <- 1
-DATA[which(DATA$party=="Democratic"),"party"] <- 0
-DATA$party <-as.factor(DATA$party)
+DATA[which(DATA$party == "Republican"), "party"] <- 1
+DATA[which(DATA$party == "Democratic"), "party"] <- 0
+DATA$party <- as.factor(DATA$party)
 
-DATA[which(DATA$I.above.average.fatality=="Yes"),"I.above.average.fatality"] <- 1
-DATA[which(DATA$I.above.average.fatality=="No"),"I.above.average.fatality"] <- 0
-DATA$I.above.average.fatality <-as.factor(DATA$I.above.average.fatality)
+DATA[which(DATA$I.above.average.fatality == "Yes"), "I.above.average.fatality"] <- 1
+DATA[which(DATA$I.above.average.fatality == "No"), "I.above.average.fatality"] <- 0
+DATA$I.above.average.fatality <- as.factor(DATA$I.above.average.fatality)
 
-DATA[which(DATA$I.above.average.incidence=="Yes"),"I.above.average.incidence"] <- 1
-DATA[which(DATA$I.above.average.incidence=="No"),"I.above.average.incidence"] <- 0
-DATA$I.above.average.incidence <-as.factor(DATA$I.above.average.incidence)
+DATA[which(DATA$I.above.average.incidence == "Yes"), "I.above.average.incidence"] <- 1
+DATA[which(DATA$I.above.average.incidence == "No"), "I.above.average.incidence"] <- 0
+DATA$I.above.average.incidence <- as.factor(DATA$I.above.average.incidence)
 
-DATA[which(DATA$I.above.average.mortality=="Yes"),"I.above.average.mortality"] <- 1
-DATA[which(DATA$I.above.average.mortality=="No"),"I.above.average.mortality"] <- 0
-DATA$I.above.average.mortality <-as.factor(DATA$I.above.average.mortality)
-DATA <- DATA[,4:59]
+DATA[which(DATA$I.above.average.mortality == "Yes"), "I.above.average.mortality"] <- 1
+DATA[which(DATA$I.above.average.mortality == "No"), "I.above.average.mortality"] <- 0
+DATA$I.above.average.mortality <- as.factor(DATA$I.above.average.mortality)
+DATA <- DATA[, 4:59]
 
-Forward_Select(DATA,"I.above.average.fatality",10,"pval")
-Forward_Select(DATA,"I.above.average.incidence",10,"pval")
-Forward_Select(DATA,"I.above.average.mortality",10,"pval")
+Forward_Select(DATA,"I.above.average.fatality", 10, "pval")
+Forward_Select(DATA,"I.above.average.incidence", 10, "pval")
+Forward_Select(DATA,"I.above.average.mortality", 10, "pval")
 
 #Prediction models
 set.seed(100)
 
 # Create DATAset and fit the NA values
-DATA = subset(DATA, select = -c(county,state, mortality.rate, fatality.rate, incidence.rate) )
-DATA = na.roughfix(DATA)
+DATA <- subset(DATA, select = -c(mortality.rate, fatality.rate, incidence.rate) )
+DATA <- na.roughfix(DATA)
 
-Trainingindex<-createDATAPartition(DATA$I.above.average.fatality, p=0.8, list=FALSE)
-trainingset<-DATA[Trainingindex, ]
-testingset<-DATA[-Trainingindex, ]
+Trainingindex <- createDataPartition(DATA$I.above.average.fatality, p = 0.8, list = FALSE)
+trainingset <- DATA[Trainingindex, ]
+testingset <- DATA[-Trainingindex, ]
 
 # Parallel Computing for Random Forest
 unregister_dopar <- function() {
   env <- foreach:::.foreachGlobals
-  rm(list=ls(name=env), pos=env)
+  rm(list = ls(name = env), pos = env)
 }
 
 unregister_dopar()
-cl<-makeCluster(8)
+cl <- makeCluster(cl.cores - 1)
 registerDoParallel(cl)
-start.time<-proc.time()
-Max = 0
-Max_i = 0
-for (i in 1:floor(sqrt(nrow(trainingset)))){
-  rf <- foreach(ntree=rep(400, 8), .combine=randomForest::combine,
-                .multicombine=TRUE, .packages='randomForest') %dopar% {
-                  randomForest(I.above.average.fatality~. - X - I.above.average.mortality - I.above.average.incidence, na.action = na.fail, DATA=trainingset, importance=TRUE, proximity=TRUE, ntree=ntree, mtry = i)
-                }
+start.time <- proc.time()
+Max <- 0
+Max_i <- 0
+
+
+for (i in 1:floor(sqrt(nrow(trainingset)))) {
+  rf <- foreach(
+    ntree = rep(400, 8),
+    .combine = randomForest::combine,
+    .multicombine = TRUE,
+    .packages = 'randomForest'
+  ) %dopar% {
+    randomForest(
+      I.above.average.fatality ~ . - I.above.average.mortality - I.above.average.incidence,
+      na.action = na.fail,
+      data = trainingset,
+      importance = TRUE,
+      proximity = TRUE,
+      ntree = ntree,
+      mtry = i
+    )
+  }
   pred = predict(rf, testingset)
   ans = sum(pred == testingset$I.above.average.fatality) / length(pred)
-  if(ans > Max ){
-    Max = ans
-    Max_i = i
+  if (ans > Max) {
+    Max <- ans
+    Max_i <- i
     print(Max) # Used in Parameter Tuning
     print(Max_i)
   }
 }
 
-stop.time<-proc.time()
-run.time<-stop.time -start.time
+stop.time <- proc.time()
+run.time <- stop.time - start.time
 print(run.time)
 stopCluster(cl)
 
 # Logistic Regression, since the phenomenon of 100% accuracy (See report) will not affect 
 # Logistic Regression, we do not remove the other 2 outcomes, but just put all of them into
 # features.
-model = glm(I.above.average.fatality~., na.action = na.omit, family = "binomial", DATA=trainingset)
-pred2 = predict(model, testingset, type="response")
-pred2 = ifelse(pred2 >= 0.5, 1, 0)
+model <- glm(I.above.average.fatality~., na.action = na.omit, family = "binomial", data = trainingset)
+pred2 <- predict(model, testingset, type = "response")
+pred2 <- ifelse(pred2 >= 0.5, 1, 0)
 table(pred2, testingset$I.above.average.fatality)
 sum(pred2 == testingset$I.above.average.fatality) / length(pred2)
 
-print(roc(as.numeric(pred2),as.numeric(testingset$I.above.average.fatality)))
-print(roc(as.numeric(pred),as.numeric(testingset$I.above.average.fatality)))
+print(roc(as.numeric(pred2), as.numeric(testingset$I.above.average.fatality)))
+print(roc(as.numeric(pred), as.numeric(testingset$I.above.average.fatality)))
+
+
+
+
+
 
 
 
