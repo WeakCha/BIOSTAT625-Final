@@ -642,6 +642,8 @@ f <- ggplot() + geom_line(aes(date, Fatality.rate, color = factor(Party)), Fatal
 ###############    3. Predictive Model     #################
 ############################################################
 # Credit to Lingxuan Kong
+# Warnings are GLM fit warning, not coding error.
+
 Forward_Select<- function(X,A,N,C){
   #Variable select
   C <- c(C)
@@ -722,6 +724,7 @@ DATA$I.above.average.incidence <-as.factor(DATA$I.above.average.incidence)
 DATA[which(DATA$I.above.average.mortality=="Yes"),"I.above.average.mortality"] <- 1
 DATA[which(DATA$I.above.average.mortality=="No"),"I.above.average.mortality"] <- 0
 DATA$I.above.average.mortality <-as.factor(DATA$I.above.average.mortality)
+DATA <- DATA[,4:59]
 
 Forward_Select(DATA,"I.above.average.fatality",10,"pval")
 Forward_Select(DATA,"I.above.average.incidence",10,"pval")
