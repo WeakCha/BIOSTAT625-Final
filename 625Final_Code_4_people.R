@@ -1,3 +1,5 @@
+## This file is the code for 4 people, we have denoted which part belongs to whom.
+
 ## library packages
 library(readr)
 library(dplyr)
@@ -107,6 +109,7 @@ data.initial <-
 
 ############################################################
 ## Task1: Visualization
+## Credit to Yubo Shao
 ## 1.1 Pandemic Situation Visualization across States
 
 Visualization.used.data <- 
@@ -273,6 +276,7 @@ kable(head(Fatality.table, n = 10), align = c("c", "c", "c", "c", "c"),
       caption = "Fatality rate (per 1,000 patients)")
 
 ## 1.2 Line Chart of Incidence Rate and Mortality Rate across Country
+# Credit to Yubo Shao
 
 ### calculate blue and red state total population
 calculate.party.population <- unique(Visualization.used.data %>% select(c("state", "state.population")))
@@ -428,7 +432,7 @@ Prediction.model.select.data$I.above.average.fatality[
 ###map
 
 ##incidence
-
+# Credit to Yichu Wang
 # add state
 incidence <- cbind(row.names(incidence.table),(incidence.table))
 colnames(incidence)[1]='state'
@@ -455,8 +459,6 @@ i1 <- plot_usmap(data = incidence, values = "2020/03/31",regions = "states",excl
 
 i1$layers[[2]]$aes_params$size <- 2
 
-i1
-
 i2 <- plot_usmap(data = incidence, values = "2020/06/30",regions = "states",exclude = c("AK","HI"),labels = TRUE) +
   labs(fill = 'Incidence Rate \n (per 100k people)') +
   scale_fill_gradientn(colours = c("dodgerblue1", "white","firebrick1"),limit = c(-2100, 2100),na.value = "white")+
@@ -465,8 +467,6 @@ i2 <- plot_usmap(data = incidence, values = "2020/06/30",regions = "states",excl
   theme(legend.position = "right")
 
 i2$layers[[2]]$aes_params$size <- 2
-
-i2
 
 i3 <- plot_usmap(data = incidence, values = "2020/09/30",regions = "states",exclude = c("AK","HI"),labels = TRUE) +
   labs(fill = 'Incidence Rate \n (per 100k people)') +
@@ -477,8 +477,6 @@ i3 <- plot_usmap(data = incidence, values = "2020/09/30",regions = "states",excl
 
 i3$layers[[2]]$aes_params$size <- 2
 
-i3
-
 i4 <- plot_usmap(data = incidence, values = "2020/12/04",regions = "states",exclude = c("AK","HI"),labels = TRUE) +
   labs(fill = 'Incidence Rate \n (per 100k people)') +
   scale_fill_gradientn(colours = c("dodgerblue3", "white","firebrick3"),limit = c(-11150, 11150),na.value = "white")+
@@ -487,8 +485,6 @@ i4 <- plot_usmap(data = incidence, values = "2020/12/04",regions = "states",excl
   theme(legend.position = "right")
 
 i4$layers[[2]]$aes_params$size <- 2
-
-i4
 
 ggsave(filename = "i1.png", plot=i1,width=6,height=6,units="in",scale=1)
 i.1 <- image_read("i1.png")
@@ -536,8 +532,6 @@ f1 <- plot_usmap(data = Fatality, values = "2020/03/31",regions = "states",exclu
 
 f1$layers[[2]]$aes_params$size <- 2
 
-f1
-
 f2 <- plot_usmap(data = Fatality, values = "2020/06/30",regions = "states",exclude = c("AK","HI"),labels = TRUE) +
   labs(fill = 'Fatality Rate \n (per 100k people)') +
   scale_fill_gradientn(colours = c("dodgerblue2", "white","firebrick2"),limit = c(-100, 100),na.value = "white")+
@@ -546,8 +540,6 @@ f2 <- plot_usmap(data = Fatality, values = "2020/06/30",regions = "states",exclu
   theme(legend.position = "right")
 
 f2$layers[[2]]$aes_params$size <- 2
-
-f2
 
 f3 <- plot_usmap(data = Fatality, values = "2020/09/30",regions = "states",exclude = c("AK","HI"),labels = TRUE) +
   labs(fill = 'Fatality Rate \n (per 100k people)') +
@@ -558,8 +550,6 @@ f3 <- plot_usmap(data = Fatality, values = "2020/09/30",regions = "states",exclu
 
 f3$layers[[2]]$aes_params$size <- 2
 
-f3
-
 f4 <- plot_usmap(data = Fatality, values = "2020/12/04",regions = "states",exclude = c("AK","HI"),labels = TRUE) +
   labs(fill = 'Fatality Rate \n (per 100k people)') +
   scale_fill_gradientn(colours = c("dodgerblue2", "white","firebrick2"),limit = c(-100, 100),na.value = "white")+
@@ -568,8 +558,6 @@ f4 <- plot_usmap(data = Fatality, values = "2020/12/04",regions = "states",exclu
   theme(legend.position = "right")
 
 f4$layers[[2]]$aes_params$size <- 2
-
-f4
 
 ##mortality
 
@@ -598,8 +586,6 @@ m1 <- plot_usmap(data = mortality, values = "2020/03/31",regions = "states",excl
 
 m1$layers[[2]]$aes_params$size <- 2
 
-m1
-
 m2 <- plot_usmap(data = mortality, values = "2020/06/30",regions = "states",exclude = c("AK","HI"),labels = TRUE) +
   labs(fill = 'Mortality Rate \n (per 100k people)') +
   scale_fill_gradientn(colours = c("dodgerblue2", "white","firebrick2"),limit = c(-200, 200),na.value = "white")+
@@ -608,8 +594,6 @@ m2 <- plot_usmap(data = mortality, values = "2020/06/30",regions = "states",excl
   theme(legend.position = "right")
 
 m2$layers[[2]]$aes_params$size <- 2
-
-m2
 
 m3 <- plot_usmap(data = mortality, values = "2020/09/30",regions = "states",exclude = c("AK","HI"),labels = TRUE) +
   labs(fill = 'Mortality Rate \n (per 100k people)') +
@@ -620,8 +604,6 @@ m3 <- plot_usmap(data = mortality, values = "2020/09/30",regions = "states",excl
 
 m3$layers[[2]]$aes_params$size <- 2
 
-m3
-
 m4 <- plot_usmap(data = mortality, values = "2020/12/04",regions = "states",exclude = c("AK","HI"),labels = TRUE) +
   labs(fill = 'Mortality Rate \n (per 100k people)') +
   scale_fill_gradientn(colours = c("dodgerblue2", "white","firebrick2"),limit = c(-200, 200),na.value = "white")+
@@ -630,8 +612,6 @@ m4 <- plot_usmap(data = mortality, values = "2020/12/04",regions = "states",excl
   theme(legend.position = "right")
 
 m4$layers[[2]]$aes_params$size <- 2
-
-m4
 
 
 ###line chart
@@ -658,12 +638,10 @@ f <- ggplot() + geom_line(aes(date, Fatality.rate, color = factor(Party)), Fatal
         axis.line = element_line(colour = "black")) + labs(x = "Date", y = "Fatality Rate (per 100,000)") +
   ggtitle("Fatality Rate of Blue and Red States",subtitle = "From 01/21/2020 to 12/04/2020")
 
-I
-M
-f
 ############################################################
 ###############    3. Predictive Model     #################
 ############################################################
+# Credit to Lingxuan Kong
 Forward_Select<- function(X,A,N,C){
   #Variable select
   C <- c(C)
@@ -720,6 +698,7 @@ Forward_Select<- function(X,A,N,C){
   }
 }
 
+# Credit to Li Liu
 # Load Data
 DATA <- read.csv("C:/Users/Lingxuan Kong/Desktop/Prediction.model.select.data.csv")
 DATA <- DATA[,-57]
@@ -744,10 +723,9 @@ DATA[which(DATA$I.above.average.mortality=="Yes"),"I.above.average.mortality"] <
 DATA[which(DATA$I.above.average.mortality=="No"),"I.above.average.mortality"] <- 0
 DATA$I.above.average.mortality <-as.factor(DATA$I.above.average.mortality)
 
-
-Forward_Select(DATA2,"I.above.average.fatality",10,"pval")
-Forward_Select(DATA2,"I.above.average.incidence",10,"pval")
-Forward_Select(DATA2,"I.above.average.mortality",10,"pval")
+Forward_Select(DATA,"I.above.average.fatality",10,"pval")
+Forward_Select(DATA,"I.above.average.incidence",10,"pval")
+Forward_Select(DATA,"I.above.average.mortality",10,"pval")
 
 #Prediction models
 set.seed(100)
